@@ -116,9 +116,12 @@ module control(
     reg [7:0] x_origin;
     reg [6:0] y_origin;
     reg [2:0] color_in;
-    assign map_value = 230'd1023;
+    assign map_value = 230'd0;
     ///
-    datapath d0(map_value, update_game, update_nx_shape, draw, resetn, x_origin, y_origin, color_in, clk, finish, plot, x_to_vga, y_to_vga, color_to_vga);
+    wire [15:0]shape_id = 16'b0000_0110_0110_0000; // BLOCK_O
+    //wire [15:0]shape_id = 16'b0000_0000_0100_1110; // BLOCK_T
+    ///
+    datapath d0(map_value, update_game, update_nx_shape, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, finish, plot, x_to_vga, y_to_vga, color_to_vga);
 
     always @(*) begin
         case(cur_state)
@@ -174,24 +177,41 @@ module datapath(
     input [6:0] y_origin,
     input [2:0] color_in,
     input clk,
+    input [15:0] shape_id,
+    //finish state for control
     output finish,
+    //out to vga
     output plot,
     output reg [7:0] x_to_vga,
     output reg [6:0] y_to_vga,
     output reg [2:0] color_to_vga
 );
-
+    // initialize game map
     reg [0:9] stacked_tiles[22:0];
     integer j;
 	always@(posedge clk) begin
 		for (j=0; j<23; j=j+1) begin
 			stacked_tiles[j] <= map_value[10*j +: 10];
 		end
+        stacked_tiles[0][0] <= 1'd1;
+        stacked_tiles[0][1] <= 1'd1;
+        stacked_tiles[0][2] <= 1'd1;
+        stacked_tiles[1][1] <= 1'd1;
 	end
-
+    // initialize waiting shape
+    reg [0:3] wait_shape[3:0];
+    integer i;
+    always@(posedge clk) begin
+        for (i=0; i<4; i=i+1) begin
+            wait_shape[i] <= shape_id[4*i +: 4];
+        end
+    end
+    //
     reg [12:0] map_cter_value;
     reg [9:0] wait_shape_cter_vlaue;
     assign finish = map_cter_value == 13'b1_1111_1111_1111 || wait_shape_cter_vlaue == 10'b11_1111_1111;
+    assign plot = draw;
+
     // main game board counter and wait shape counter
     always @(posedge clk) begin
         if (!resetn) begin
@@ -214,7 +234,7 @@ module datapath(
             else if (wait_shape_cter_vlaue[4:0] < 5'd8 || wait_shape_cter_vlaue[4:0] > 5'd23 || wait_shape_cter_vlaue[9:5] < 5'd8 || wait_shape_cter_vlaue[9:5] > 5'd23)
                 color_to_vga <= 3'b011;
             else
-                color_to_vga <= 3'b111;
+                color_to_vga <= (wait_shape[(wait_shape_cter_vlaue[9:5]-4'd8)/3'd4][(wait_shape_cter_vlaue[4:0]-4'd8)/3'd4]) ? color_in : 3'b111;
         end
         else begin
             map_cter_value <= 13'd0;
@@ -222,7 +242,7 @@ module datapath(
         end
     end
 
-    // x y movement
+    // drawing x-y movement
     always @(posedge clk) begin
         if (!resetn) begin
             x_to_vga <= 8'd0;
@@ -237,6 +257,5 @@ module datapath(
             y_to_vga <= y_origin + wait_shape_cter_vlaue[9:5];
         end
     end
-    assign plot = draw;
     
 endmodule
