@@ -109,17 +109,24 @@ module control(
                 UPDATE_MAP = 4'd1,
                 UPDATE_WAIT_SHAPE = 4'd2,
                 UPDATE_TIME_SEG1 = 4'd3,
-                FINISH = 4'd4;
+                UPDATE_TIME_SEG2 = 4'd4,
+                UPDATE_TIME_COL = 4'd5,
+                UPDATE_TIME_SEG3 = 4'd6,
+                UPDATE_TIME_SEG4 = 4'd7,
+                UPDATE_SCORE_SEG1 = 4'd8,
+                UPDATE_SCORE_SEG2 = 4'd9,
+                UPDATE_SCORE_SEG3 = 4'd10,
+                GAME_OVER = 4'd11,
+                FINISH = 4'd12;
     wire finish;
     ///
-    wire [229:0] map_value;
+    reg [229:0] map_value;
     reg update_game, update_nx_shape, update_digit, draw;
     reg [7:0] x_origin;
     reg [6:0] y_origin;
     reg [2:0] color_in;
-    assign map_value = 230'd0;
     ///
-    wire [27:0] digit_seg_value = 28'b1111_1001_1001_1111_1001_1001_1111; // digit "8"
+    reg [27:0] digit_seg_value;
     ///
     ///
     wire [15:0]shape_id = 16'b0000_0110_0110_0000; // BLOCK_O
@@ -132,7 +139,15 @@ module control(
             WAIT: nx_state = start ? WAIT : UPDATE_MAP;
             UPDATE_MAP: nx_state = finish ? UPDATE_WAIT_SHAPE : UPDATE_MAP;
             UPDATE_WAIT_SHAPE: nx_state = finish ? UPDATE_TIME_SEG1 : UPDATE_WAIT_SHAPE;
-            UPDATE_TIME_SEG1: nx_state = finish ? WAIT : UPDATE_TIME_SEG1;
+            UPDATE_TIME_SEG1: nx_state = finish ? UPDATE_TIME_SEG2 : UPDATE_TIME_SEG1;
+            UPDATE_TIME_SEG2: nx_state = finish ? UPDATE_TIME_COL : UPDATE_TIME_SEG2;
+            UPDATE_TIME_COL: nx_state = finish ? UPDATE_TIME_SEG3 : UPDATE_TIME_COL;
+            UPDATE_TIME_SEG3: nx_state = finish ? UPDATE_TIME_SEG4 : UPDATE_TIME_SEG3;
+            UPDATE_TIME_SEG4: nx_state = finish ? UPDATE_SCORE_SEG1 : UPDATE_TIME_SEG4;
+            UPDATE_SCORE_SEG1: nx_state = finish ? UPDATE_SCORE_SEG2 : UPDATE_SCORE_SEG1;
+            UPDATE_SCORE_SEG2: nx_state = finish ? UPDATE_SCORE_SEG3 : UPDATE_SCORE_SEG2;
+            UPDATE_SCORE_SEG3: nx_state = finish ? GAME_OVER : UPDATE_SCORE_SEG3;
+            GAME_OVER: nx_state = finish ? FINISH : GAME_OVER;
             FINISH: nx_state = WAIT;
             default: nx_state = WAIT;
         endcase
@@ -142,12 +157,15 @@ module control(
         update_game = 1'd0;
         update_nx_shape = 1'd0;
         update_digit = 1'd0;
+        map_value = 230'd0;
+        digit_seg_value = 28'd0;
         draw = 1'd0;
         x_origin = 8'd0;
         y_origin = 7'd0;
         color_in = 3'b100;
         case(cur_state)
             UPDATE_MAP: begin
+                map_value = 230'd7;
                 draw = 1'd1;
                 update_game = 1'd1;
                 x_origin = 8'd0;
@@ -160,12 +178,41 @@ module control(
                 y_origin = 7'd6;
             end
             UPDATE_TIME_SEG1: begin
+                digit_seg_value = 28'b1111_1001_1001_1111_1001_1001_1111; // digit 8
+                //digit_seg_value = 28'd0;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd68;
                 y_origin = 7'd52;
             end
-            
+            UPDATE_TIME_SEG2: begin
+                digit_seg_value = 28'b0001_0001_0001_0001_0001_0001_1111; // digit 7
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd74;
+                y_origin = 7'd52;
+            end
+            UPDATE_TIME_COL: begin
+                digit_seg_value = 28'b0000_0000_1000_0000_1000_0000_0000; // ":"
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd80;
+                y_origin = 7'd52;
+            end
+            // UPDATE_TIME_SEG3: begin
+            //     digit_seg_value = 28'b1111_1001_1001_1111_1000_1000_1111;// digit 6
+            //     draw = 1'd1;
+            //     update_digit = 1'd1;
+            //     x_origin = 8'd85;
+            //     y_origin = 7'd 52;
+            // end
+            // UPDATE_TIME_SEG4: begin
+            //     digit_seg_value = 28'b1111_0001_0001_1111_1000_1000_1111; // digit 5
+            //     draw = 1'd1;
+            //     update_digit = 1'd1;
+            //     x_origin = 8'd89;
+            //     y_origin = 7'd 52;
+            //end
         endcase
     end
 
@@ -222,7 +269,7 @@ module datapath(
         end
     end
     // initialize digit seg value
-    reg [3:0] digit_seg[6:0];
+    reg [0:3] digit_seg[6:0];
     integer s;
     always@(posedge clk) begin
         for (s=0; s<7; s=s+1) begin
@@ -262,11 +309,11 @@ module datapath(
                 color_to_vga <= (wait_shape[(wait_shape_cter_vlaue[9:5]-4'd8)/3'd4][(wait_shape_cter_vlaue[4:0]-4'd8)/3'd4]) ? color_in : 3'b111;
         end
         else if(update_digit) begin // update digit
-            digit_cter_value <= digit_cter_value + 6'd1;
             if (digit_cter_value[2:0] > 2'd3 || digit_cter_value[5:3] > 3'd6)
                 color_to_vga <= 3'd0;
             else
                 color_to_vga <= (digit_seg[(digit_cter_value[5:3])][(digit_cter_value[2:0])]) ? color_in : 3'd0;
+            digit_cter_value <= digit_cter_value + 6'd1;
         end
         else begin
             map_cter_value <= 13'd0;
