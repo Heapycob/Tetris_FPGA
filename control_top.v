@@ -126,7 +126,7 @@ module control(
     reg [6:0] y_origin;
     reg [2:0] color_in;
     ///
-    reg [27:0] digit_seg_value;
+    reg [20:0] digit_seg_value;
     ///
     ///
     wire [15:0]shape_id = 16'b0000_0110_0110_0000; // BLOCK_O
@@ -178,41 +178,62 @@ module control(
                 y_origin = 7'd6;
             end
             UPDATE_TIME_SEG1: begin
-                digit_seg_value = 28'b1111_1001_1001_1111_1001_1001_1111; // digit 8
+                digit_seg_value = 21'b111_101_101_111_101_101_111; // digit 8
                 //digit_seg_value = 28'd0;
                 draw = 1'd1;
                 update_digit = 1'd1;
-                x_origin = 8'd68;
+                x_origin = 8'd67;
                 y_origin = 7'd52;
             end
             UPDATE_TIME_SEG2: begin
-                digit_seg_value = 28'b0001_0001_0001_0001_0001_0001_1111; // digit 7
+                digit_seg_value = 21'b001_001_001_001_001_001_111; // digit 7
                 draw = 1'd1;
                 update_digit = 1'd1;
-                x_origin = 8'd74;
+                x_origin = 8'd72;
                 y_origin = 7'd52;
             end
             UPDATE_TIME_COL: begin
-                digit_seg_value = 28'b0000_0000_1000_0000_1000_0000_0000; // ":"
+                digit_seg_value = 21'b000_000_100_000_100_000_000; // ":"
                 draw = 1'd1;
                 update_digit = 1'd1;
-                x_origin = 8'd80;
+                x_origin = 8'd78;
                 y_origin = 7'd52;
             end
-            // UPDATE_TIME_SEG3: begin
-            //     digit_seg_value = 28'b1111_1001_1001_1111_1000_1000_1111;// digit 6
-            //     draw = 1'd1;
-            //     update_digit = 1'd1;
-            //     x_origin = 8'd85;
-            //     y_origin = 7'd 52;
-            // end
-            // UPDATE_TIME_SEG4: begin
-            //     digit_seg_value = 28'b1111_0001_0001_1111_1000_1000_1111; // digit 5
-            //     draw = 1'd1;
-            //     update_digit = 1'd1;
-            //     x_origin = 8'd89;
-            //     y_origin = 7'd 52;
-            //end
+            UPDATE_TIME_SEG3: begin
+                digit_seg_value = 21'b111_101_101_111_100_100_111;// digit 6
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd82;
+                y_origin = 7'd 52;
+            end
+            UPDATE_TIME_SEG4: begin
+                digit_seg_value = 21'b111_001_001_111_100_100_111; // digit 5
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd87;
+                y_origin = 7'd 52;
+            end
+            UPDATE_SCORE_SEG1: begin
+                digit_seg_value = 21'b001_001_001_111_101_101_101; // digit 1
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd67;
+                y_origin = 7'd70;
+            end
+            UPDATE_SCORE_SEG2: begin
+                digit_seg_value = 21'b111_100_100_111_001_001_111; // digit 2
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd72;
+                y_origin = 7'd70;
+            end
+            UPDATE_SCORE_SEG3: begin
+                digit_seg_value = 21'b111_001_001_111_001_001_111; // digit 3
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd77;
+                y_origin = 7'd70;
+            end
         endcase
     end
 
@@ -239,7 +260,7 @@ module datapath(
     input [2:0] color_in,
     input clk,
     input [15:0] shape_id,
-    input [27:0] digit_seg_value,
+    input [20:0] digit_seg_value,
     //finish state for control
     output finish,
     //out to vga
@@ -269,11 +290,11 @@ module datapath(
         end
     end
     // initialize digit seg value
-    reg [0:3] digit_seg[6:0];
+    reg [0:2] digit_seg[6:0];
     integer s;
     always@(posedge clk) begin
         for (s=0; s<7; s=s+1) begin
-            digit_seg[s] <= digit_seg_value[4*s +: 4];
+            digit_seg[s] <= digit_seg_value[3*s +: 3];
         end
     end
     //
@@ -309,11 +330,11 @@ module datapath(
                 color_to_vga <= (wait_shape[(wait_shape_cter_vlaue[9:5]-4'd8)/3'd4][(wait_shape_cter_vlaue[4:0]-4'd8)/3'd4]) ? color_in : 3'b111;
         end
         else if(update_digit) begin // update digit
-            if (digit_cter_value[2:0] > 2'd3 || digit_cter_value[5:3] > 3'd6)
+            digit_cter_value <= digit_cter_value + 6'd1;
+            if (digit_cter_value[2:0] < 1'd1 || digit_cter_value[2:0] > 2'd3 || digit_cter_value[5:3] > 3'd6)
                 color_to_vga <= 3'd0;
             else
-                color_to_vga <= (digit_seg[(digit_cter_value[5:3])][(digit_cter_value[2:0])]) ? color_in : 3'd0;
-            digit_cter_value <= digit_cter_value + 6'd1;
+                color_to_vga <= (digit_seg[(digit_cter_value[5:3])][(digit_cter_value[2:0]) - 1'd1]) ? color_in : 3'd0;
         end
         else begin
             map_cter_value <= 13'd0;
