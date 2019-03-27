@@ -108,26 +108,31 @@ module control(
     localparam  WAIT = 4'd0,
                 UPDATE_MAP = 4'd1,
                 UPDATE_WAIT_SHAPE = 4'd2,
-                FINISH = 4'd3;
+                UPDATE_TIME_SEG1 = 4'd3,
+                FINISH = 4'd4;
     wire finish;
     ///
     wire [229:0] map_value;
-    reg update_game, update_nx_shape, draw;
+    reg update_game, update_nx_shape, update_digit, draw;
     reg [7:0] x_origin;
     reg [6:0] y_origin;
     reg [2:0] color_in;
     assign map_value = 230'd0;
     ///
+    wire [27:0] digit_seg_value = 28'b1111_1001_1001_1111_1001_1001_1111; // digit "8"
+    ///
+    ///
     wire [15:0]shape_id = 16'b0000_0110_0110_0000; // BLOCK_O
     //wire [15:0]shape_id = 16'b0000_0000_0100_1110; // BLOCK_T
     ///
-    datapath d0(map_value, update_game, update_nx_shape, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, finish, plot, x_to_vga, y_to_vga, color_to_vga);
+    datapath d0(map_value, update_game, update_nx_shape, update_digit, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, digit_seg_value, finish, plot, x_to_vga, y_to_vga, color_to_vga);
 
     always @(*) begin
         case(cur_state)
             WAIT: nx_state = start ? WAIT : UPDATE_MAP;
             UPDATE_MAP: nx_state = finish ? UPDATE_WAIT_SHAPE : UPDATE_MAP;
-            UPDATE_WAIT_SHAPE: nx_state = finish ? FINISH : UPDATE_WAIT_SHAPE;
+            UPDATE_WAIT_SHAPE: nx_state = finish ? UPDATE_TIME_SEG1 : UPDATE_WAIT_SHAPE;
+            UPDATE_TIME_SEG1: nx_state = finish ? WAIT : UPDATE_TIME_SEG1;
             FINISH: nx_state = WAIT;
             default: nx_state = WAIT;
         endcase
@@ -136,6 +141,7 @@ module control(
     always @(*) begin
         update_game = 1'd0;
         update_nx_shape = 1'd0;
+        update_digit = 1'd0;
         draw = 1'd0;
         x_origin = 8'd0;
         y_origin = 7'd0;
@@ -153,6 +159,13 @@ module control(
                 x_origin = 8'd64;
                 y_origin = 7'd6;
             end
+            UPDATE_TIME_SEG1: begin
+                draw = 1'd1;
+                update_digit = 1'd1;
+                x_origin = 8'd68;
+                y_origin = 7'd52;
+            end
+            
         endcase
     end
 
@@ -171,6 +184,7 @@ module datapath(
     input [229:0] map_value,
     input update_game,
     input update_nx_shape,
+    input update_digit,
     input draw,
     input resetn,
     input [7:0] x_origin,
@@ -178,6 +192,7 @@ module datapath(
     input [2:0] color_in,
     input clk,
     input [15:0] shape_id,
+    input [27:0] digit_seg_value,
     //finish state for control
     output finish,
     //out to vga
@@ -186,7 +201,7 @@ module datapath(
     output reg [6:0] y_to_vga,
     output reg [2:0] color_to_vga
 );
-    // initialize game map
+    // initialize game map and display the falling piece(the falling piece is not stacked yet, so it is just a view for player.)
     reg [0:9] stacked_tiles[22:0];
     integer j;
 	always@(posedge clk) begin
@@ -206,10 +221,19 @@ module datapath(
             wait_shape[i] <= shape_id[4*i +: 4];
         end
     end
+    // initialize digit seg value
+    reg [3:0] digit_seg[6:0];
+    integer s;
+    always@(posedge clk) begin
+        for (s=0; s<7; s=s+1) begin
+            digit_seg[s] <= digit_seg_value[4*s +: 4];
+        end
+    end
     //
     reg [12:0] map_cter_value;
     reg [9:0] wait_shape_cter_vlaue;
-    assign finish = map_cter_value == 13'b1_1111_1111_1111 || wait_shape_cter_vlaue == 10'b11_1111_1111;
+    reg [5:0] digit_cter_value;
+    assign finish = map_cter_value == 13'b1_1111_1111_1111 || wait_shape_cter_vlaue == 10'b11_1111_1111 || digit_cter_value == 6'b11_1111;
     assign plot = draw;
 
     // main game board counter and wait shape counter
@@ -217,6 +241,7 @@ module datapath(
         if (!resetn) begin
             map_cter_value <= 13'd0;
             wait_shape_cter_vlaue <= 10'd0;
+            digit_cter_value <= 6'd0;
         end
         else if(update_game) begin // update main game board
             map_cter_value <= map_cter_value + 13'd1;
@@ -236,9 +261,17 @@ module datapath(
             else
                 color_to_vga <= (wait_shape[(wait_shape_cter_vlaue[9:5]-4'd8)/3'd4][(wait_shape_cter_vlaue[4:0]-4'd8)/3'd4]) ? color_in : 3'b111;
         end
+        else if(update_digit) begin // update digit
+            digit_cter_value <= digit_cter_value + 6'd1;
+            if (digit_cter_value[2:0] > 2'd3 || digit_cter_value[5:3] > 3'd6)
+                color_to_vga <= 3'd0;
+            else
+                color_to_vga <= (digit_seg[(digit_cter_value[5:3])][(digit_cter_value[2:0])]) ? color_in : 3'd0;
+        end
         else begin
             map_cter_value <= 13'd0;
             wait_shape_cter_vlaue <= 10'd0;
+            digit_cter_value <= 6'd0;
         end
     end
 
@@ -255,6 +288,10 @@ module datapath(
         else if(update_nx_shape) begin
             x_to_vga <= x_origin + wait_shape_cter_vlaue[4:0];
             y_to_vga <= y_origin + wait_shape_cter_vlaue[9:5];
+        end
+        else if(update_digit) begin
+            x_to_vga <= x_origin + digit_cter_value[2:0];
+            y_to_vga <= y_origin + digit_cter_value[5:3];
         end
     end
     
