@@ -63,23 +63,6 @@ module control_top (
 		defparam VGA.BITS_PER_COLOUR_CHANNEL = 1;
 		defparam VGA.BACKGROUND_IMAGE = "black.mif";
 			
-	// Put your code here. Your code should produce signals x,y,colour and writeEn/plot
-	// for the VGA controller, in addition to any other functionality your design may require.
-
-    // wire [2:0] color_in;
-    // wire [229:0] map_value;
-    // wire [15:0] shape_value;
-    // wire update_game, ld;
-    // wire done;
-    // assign color_in = SW[9:7];
-    // assign ld = KEY[1];
-    // assign update_game = KEY[2];
-    // reg finish;
-
-    //display_empty_map d0(1'd1, resetn, 8'd18, 7'd0, color_in, CLOCK_50, colour, writeEn, x, y);
-    // assign map_value = 230'd1023;
-    //display_empty_map d0(map_value, 1'd1, resetn, 8'd18, 7'd0, color_in, CLOCK_50, writeEn, x, y, colour);
-    // datapath(map_value, 1'd0, 1'd1, 1'd1, resetn, 8'd72, 7'd0, color_in, CLOCK_50, writeEn, x, y, colour);
     wire start;
     assign start = KEY[1];
     control c0(CLOCK_50, resetn, start, writeEn, x, y, colour);
@@ -116,8 +99,9 @@ module control(
                 UPDATE_SCORE_SEG1 = 4'd8,
                 UPDATE_SCORE_SEG2 = 4'd9,
                 UPDATE_SCORE_SEG3 = 4'd10,
-                GAME_OVER = 4'd11,
-                FINISH = 4'd12;
+                WAIT_1_FRAME = 4'd11,
+                GAME_OVER = 4'd12,
+                FINISH = 4'd13;
     wire finish;
     ///
     reg [229:0] map_value;
@@ -134,6 +118,25 @@ module control(
     ///
     datapath d0(map_value, update_game, update_nx_shape, update_digit, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, digit_seg_value, finish, plot, x_to_vga, y_to_vga, color_to_vga);
 
+
+    // initialize 1 second clock.
+    wire one_s_clk;
+    clk_1sec c2 (clk, resetn, one_s_clk);
+    // initialize time recorder.
+    reg enable_time_recorder; // *
+    wire [15:0] time_value;
+    time_recorder ti0 (one_s_clk, resetn, enable_time_recorder, time_value);
+    // initialize digit decoder for each digit of time.
+    wire [20:0] decoder_out3;
+    wire [20:0] decoder_out2;
+    wire [20:0] decoder_out1;
+    wire [20:0] decoder_out0;
+    digit_decoder di3(time_value[15:12], decoder_out3);
+    digit_decoder di2(time_value[11:8], decoder_out2);
+    digit_decoder di1(time_value[7:4], decoder_out1);
+    digit_decoder di0(time_value[3:0], decoder_out0);
+
+
     always @(*) begin
         case(cur_state)
             WAIT: nx_state = start ? WAIT : UPDATE_MAP;
@@ -146,14 +149,29 @@ module control(
             UPDATE_TIME_SEG4: nx_state = finish ? UPDATE_SCORE_SEG1 : UPDATE_TIME_SEG4;
             UPDATE_SCORE_SEG1: nx_state = finish ? UPDATE_SCORE_SEG2 : UPDATE_SCORE_SEG1;
             UPDATE_SCORE_SEG2: nx_state = finish ? UPDATE_SCORE_SEG3 : UPDATE_SCORE_SEG2;
-            UPDATE_SCORE_SEG3: nx_state = finish ? GAME_OVER : UPDATE_SCORE_SEG3;
+            UPDATE_SCORE_SEG3: nx_state = finish ? WAIT_1_FRAME : UPDATE_SCORE_SEG3; // ***
+            WAIT_1_FRAME: nx_state = finish_wait ? UPDATE_MAP : WAIT_1_FRAME;
             GAME_OVER: nx_state = finish ? FINISH : GAME_OVER;
             FINISH: nx_state = WAIT;
             default: nx_state = WAIT;
         endcase
     end
 
+    // frame counter
+    reg [19:0] frame_counter;
+    wire finish_wait;
+    assign finish_wait = (frame_counter == 20'd833333);
+    always @(posedge clk) begin
+        if (!resetn)
+            frame_counter <= 20'd0;
+        else if (cur_state == UPDATE_SCORE_SEG3)
+            frame_counter <= 20'd0;
+        else
+            frame_counter <= frame_counter + 1'd1;
+    end
+
     always @(*) begin
+        enable_time_recorder <= 1'd1;
         update_game = 1'd0;
         update_nx_shape = 1'd0;
         update_digit = 1'd0;
@@ -164,6 +182,8 @@ module control(
         y_origin = 7'd0;
         color_in = 3'b100;
         case(cur_state)
+            WAIT:
+                enable_time_recorder <= 1'd0;
             UPDATE_MAP: begin
                 map_value = 230'd7;
                 draw = 1'd1;
@@ -178,15 +198,14 @@ module control(
                 y_origin = 7'd6;
             end
             UPDATE_TIME_SEG1: begin
-                digit_seg_value = 21'b111_101_101_111_101_101_111; // digit 8
-                //digit_seg_value = 28'd0;
+                digit_seg_value = decoder_out3; // digit 8
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd67;
                 y_origin = 7'd52;
             end
             UPDATE_TIME_SEG2: begin
-                digit_seg_value = 21'b001_001_001_001_001_001_111; // digit 7
+                digit_seg_value = decoder_out2; // digit 7
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd72;
@@ -200,14 +219,14 @@ module control(
                 y_origin = 7'd52;
             end
             UPDATE_TIME_SEG3: begin
-                digit_seg_value = 21'b111_101_101_111_100_100_111;// digit 6
+                digit_seg_value = decoder_out1;// digit 6
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd82;
                 y_origin = 7'd 52;
             end
             UPDATE_TIME_SEG4: begin
-                digit_seg_value = 21'b111_001_001_111_100_100_111; // digit 5
+                digit_seg_value = decoder_out0; // digit 5
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd87;
@@ -234,6 +253,7 @@ module control(
                 x_origin = 8'd77;
                 y_origin = 7'd70;
             end
+
         endcase
     end
 

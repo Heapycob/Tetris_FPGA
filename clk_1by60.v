@@ -18,8 +18,8 @@ module clk_1by60 (clk, resetn, enable, delayed_clk0);
     end
 endmodule
 
-module clk_1sec (clk, resetn, enable, delayed_clk1);
-    input clk, resetn, enable;
+module clk_1sec (clk, resetn, delayed_clk1);
+    input clk, resetn;
     output delayed_clk1;
     reg [25:0] delay_counter;
 
@@ -27,13 +27,10 @@ module clk_1sec (clk, resetn, enable, delayed_clk1);
     always@(posedge clk) begin
         if (!resetn)
             delay_counter <= 26'd0;
-        else if (enable) begin
-            delay_counter <= delay_counter + 1'd1;
-            if (delay_counter == 26'd49999999)
-                delay_counter <= 26'd0;
-        end
-        else
+        else if (delay_counter == 26'd49999999)
             delay_counter <= 26'd0;
+        else
+            delay_counter <= delay_counter + 1'd1;
     end
 endmodule
 
