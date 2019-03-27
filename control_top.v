@@ -158,7 +158,7 @@ module control(
         update_nx_shape = 1'd0;
         update_digit = 1'd0;
         map_value = 230'd0;
-        digit_seg_value = 28'd0;
+        digit_seg_value = 21'd0;
         draw = 1'd0;
         x_origin = 8'd0;
         y_origin = 7'd0;
@@ -289,7 +289,7 @@ module datapath(
             wait_shape[i] <= shape_id[4*i +: 4];
         end
     end
-    // initialize digit seg value
+    // initialize digit seg value(digit for score and time displaying)
     reg [0:2] digit_seg[6:0];
     integer s;
     always@(posedge clk) begin
@@ -304,7 +304,7 @@ module datapath(
     assign finish = map_cter_value == 13'b1_1111_1111_1111 || wait_shape_cter_vlaue == 10'b11_1111_1111 || digit_cter_value == 6'b11_1111;
     assign plot = draw;
 
-    // main game board counter and wait shape counter
+    // all drawing counters
     always @(posedge clk) begin
         if (!resetn) begin
             map_cter_value <= 13'd0;
