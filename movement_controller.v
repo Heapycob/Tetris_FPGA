@@ -38,9 +38,18 @@ module movement_controller(
     shape_recognisor sr(cur_shape_id, t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y);
 
     reg [25:0] delay_cter;
-
+    reg [25:0] speed;
+    
+    wire left_wall = t0_x_out == 4'd0 || t1_x_out == 4'd0 || t2_x_out == 4'd0 || t3_x_out == 4'd0;
+    wire right_wall = t0_x_out == 4'd9 || t1_x_out == 4'd9 || t2_x_out == 4'd9 || t3_x_out == 4'd9;
+    wire bottom_wall = t0_y_out == 5'd22 || t1_y_out == 5'd22 || t2_y_out == 5'd22 || t3_y_out == 5'd22;
+    wire left_tiles_collision = board_value[t0_y_out][t0_x_out-1] || board_value[t1_y_out][t1_x_out-1] || board_value[t2_y_out][t2_x_out-1] || board_value[t3_y_out][t3_x_out-1];
+    wire right_tiles_collision = board_value[t0_y_out][t0_x_out+1] || board_value[t1_y_out][t1_x_out+1] || board_value[t2_y_out][t2_x_out+1] || board_value[t3_y_out][t3_x_out+1];
+    wire bottom_tiles_collision = board_value[t0_y_out+1][t0_x_out] || board_value[t1_y_out+1][t1_x_out] || board_value[t2_y_out+1][t2_x_out] || board_value[t3_y_out+1][t3_x_out];
+    
     always@(posedge clk_50) begin
         cur_stacked <= 1'd0;
+        speed <= 26'd50000000;
         if (!resetn)
             delay_cter <= 26'd0;
         else if(delay_cter == 26'd49999999)
@@ -63,54 +72,54 @@ module movement_controller(
         //     // depends on the shape
         // end
 
-        if (down) begin
-            if (delay_cter % 26'd12499998 == 26'd0) begin
-                // speed up motion
+        if (down)
+            speed <= 26'd12500000;
+
+        if (delay_cter % speed == 26'd0) begin
+            if (bottom_wall || bottom_tiles_collision) begin
+                cur_stacked <= 1'd1;
+            end
+            else begin
+                t0_y_out <= t0_y_out + 5'd1;
+                t1_y_out <= t1_y_out + 5'd1;
+                t2_y_out <= t2_y_out + 5'd1;
+                t3_y_out <= t3_y_out + 5'd1;
             end
         end
-        else begin
-            if (delay_cter == 26'd49999999) begin
-                if (t0_y_out == 5'd22 || t1_y_out == 5'd22 || t2_y_out == 5'd22 || t3_y_out == 5'd22 || board_value[t0_y_out+1][t0_x_out] == 1'd1 || board_value[t1_y_out+1][t1_x_out] == 1'd1 || board_value[t2_y_out+1][t2_x_out] == 1'd1 || board_value[t3_y_out+1][t3_x_out] == 1'd1) begin
-                    cur_stacked <= 1'd1;
+
+        if (left) begin
+            if (delay_cter % 26'd12500000 == 26'd0) begin
+                if (left_wall || left_tiles_collision) begin
+                    t0_x_out <= t0_x_out;
+                    t1_x_out <= t1_x_out;
+                    t2_x_out <= t2_x_out;
+                    t3_x_out <= t3_x_out;
                 end
                 else begin
-                    t0_y_out <= t0_y_out + 5'd1;
-                    t1_y_out <= t1_y_out + 5'd1;
-                    t2_y_out <= t2_y_out + 5'd1;
-                    t3_y_out <= t3_y_out + 5'd1;
+                    t0_x_out <= t0_x_out - 1'd1;
+                    t1_x_out <= t1_x_out - 1'd1;
+                    t2_x_out <= t2_x_out - 1'd1;
+                    t3_x_out <= t3_x_out - 1'd1;
                 end
             end
         end
 
-        // if (left) begin
-        //     if (t0_x_out == 4'd0 || t1_x_out == 4'd0 || t2_x_out == 4'd0 || t3_x_out == 4'd0) begin
-        //         t0_x_out <= t0_x_out;
-        //         t1_x_out <= t1_x_out;
-        //         t2_x_out <= t2_x_out;
-        //         t3_x_out <= t3_x_out;
-        //     end
-        //     else begin
-        //         t0_x_out <= t0_x_out - 1'd1;
-        //         t1_x_out <= t1_x_out - 1'd1;
-        //         t2_x_out <= t2_x_out - 1'd1;
-        //         t3_x_out <= t3_x_out - 1'd1;
-        //     end
-        // end
-
-        // if (right) begin
-        //     if (t0_x_out == 4'd9 || t1_x_out == 4'd9 || t2_x_out == 4'd9 || t3_x_out == 4'd9) begin
-        //         t0_x_out <= t0_x_out;
-        //         t1_x_out <= t1_x_out;
-        //         t2_x_out <= t2_x_out;
-        //         t3_x_out <= t3_x_out;
-        //     end
-        //     else begin
-        //         t0_x_out <= t0_x_out + 1'd1;
-        //         t1_x_out <= t1_x_out + 1'd1;
-        //         t2_x_out <= t2_x_out + 1'd1;
-        //         t3_x_out <= t3_x_out + 1'd1;
-        //     end
-        // end
+        if (right) begin
+            if (delay_cter % 26'd12500000 == 26'd0) begin
+                if (right_wall || right_tiles_collision) begin
+                    t0_x_out <= t0_x_out;
+                    t1_x_out <= t1_x_out;
+                    t2_x_out <= t2_x_out;
+                    t3_x_out <= t3_x_out;
+                end
+                else begin
+                    t0_x_out <= t0_x_out + 1'd1;
+                    t1_x_out <= t1_x_out + 1'd1;
+                    t2_x_out <= t2_x_out + 1'd1;
+                    t3_x_out <= t3_x_out + 1'd1;
+                end
+            end
+        end
     end
 
 
@@ -174,14 +183,13 @@ module tetris(
                 GAME_OVER = 3'd7;
     
     //
-    wire d_up, d_down, d_left, d_right; // wait for debouncer
     reg [2:0] cur_shape_id, nx_shape_id;
     reg clear_board;
     wire cur_stacked;
 
     reg ld_cur;
 
-    movement_controller mvc(d_up, d_down, d_left, d_right, cur_shape_id, ld_cur, clk_50, resetn, board_value, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out);
+    movement_controller mvc(up, down, left, right, cur_shape_id, ld_cur, clk_50, resetn, board_value, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out);
     //
     
     board_state_recorder bst(clk_50, resetn, clear_board, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out, gameover, board_value);

@@ -65,11 +65,17 @@ module control_top (
 			
     wire start;
     assign start = KEY[1];
-    control c0(CLOCK_50, resetn, start, writeEn, x, y, colour);
+    control c0(SW[2], SW[1], SW[3], SW[0], CLOCK_50, resetn, start, writeEn, x, y, colour);
 
 endmodule
 
 module control(
+    //
+    up,
+    down,
+    left,
+    right,
+    //
     clk,
     resetn,
     start,
@@ -78,7 +84,7 @@ module control(
     y_to_vga,
     color_to_vga
 );
-
+    input up, down, left, right;
     input clk;
     input resetn;
     input start;
@@ -121,7 +127,6 @@ module control(
     datapath d0(t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, board_value, update_game, update_nx_shape, update_digit, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, digit_seg_value, finish, plot, x_to_vga, y_to_vga, color_to_vga);
     //////
     
-    wire up, down, left, right;
     wire gameover;
     tetris tet0 (up, down, left, right, clk, resetn, start, board_value, shape_id, t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, gameover);
     /////////

@@ -1,3 +1,4 @@
+// randomly generate 3 bit value from 0 to 7 based on LFSR.
 module shape_generator(
     clk,
     resetn,
