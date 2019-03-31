@@ -1,5 +1,5 @@
 module shape_recognisor(
-    input shape_id,
+    input [2:0]shape_id,
     output reg [3:0] t0_x,
     output reg [3:0] t1_x,
     output reg [3:0] t2_x,
@@ -7,7 +7,7 @@ module shape_recognisor(
     output reg [4:0] t0_y,
     output reg [4:0] t1_y,
     output reg [4:0] t2_y,
-    output reg [4:0] t3_y,
+    output reg [4:0] t3_y
 );
 
 always@(*) begin
@@ -81,6 +81,16 @@ always@(*) begin
             t2_y <= 5'd1;
             t3_x <= 4'd6;
             t3_y <= 5'd1;
+        end
+        default: begin // I
+            t0_x <= 4'd5;
+            t0_y <= 5'd0;
+            t1_x <= 4'd5;
+            t1_y <= 5'd1;
+            t2_x <= 4'd5;
+            t2_y <= 5'd2;
+            t3_x <= 4'd5;
+            t3_y <= 5'd3;
         end
     endcase
 end

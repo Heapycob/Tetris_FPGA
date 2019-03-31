@@ -104,7 +104,7 @@ module control(
                 FINISH = 4'd13;
     wire finish;
     ///
-    reg [229:0] map_value;
+    wire [229:0] board_value;
     reg update_game, update_nx_shape, update_digit, draw;
     reg [7:0] x_origin;
     reg [6:0] y_origin;
@@ -113,19 +113,23 @@ module control(
     reg [20:0] digit_seg_value;
     ///
     ///
-    wire [15:0]shape_id = 16'b0000_0110_0110_0000; // BLOCK_O
+    wire [15:0]shape_id;// = 16'b0000_0110_0110_0000; // BLOCK_O
     //wire [15:0]shape_id = 16'b0000_0000_0100_1110; // BLOCK_T
     ///
-    datapath d0(map_value, update_game, update_nx_shape, update_digit, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, digit_seg_value, finish, plot, x_to_vga, y_to_vga, color_to_vga);
+    wire [3:0] t0_x, t1_x, t2_x, t3_x;
+    wire [4:0] t0_y, t1_y, t2_y, t3_y;
+    datapath d0(t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, board_value, update_game, update_nx_shape, update_digit, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, digit_seg_value, finish, plot, x_to_vga, y_to_vga, color_to_vga);
+    //////
+    
+    wire up, down, left, right;
+    wire gameover;
+    tetris tet0 (up, down, left, right, clk, resetn, start, board_value, shape_id, t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, gameover);
+    /////////
 
-
-    // initialize 1 second clock.
-    wire one_s_clk;
-    clk_1sec c2 (clk, resetn, one_s_clk);
     // initialize time recorder.
     reg enable_time_recorder; // *
     wire [15:0] time_value;
-    time_recorder ti0 (one_s_clk, resetn, enable_time_recorder, time_value);
+    time_recorder ti0 (clk, resetn, enable_time_recorder, time_value);
     // initialize digit decoder for each digit of time.
     wire [20:0] decoder_out3;
     wire [20:0] decoder_out2;
@@ -135,7 +139,7 @@ module control(
     digit_decoder di2(time_value[11:8], decoder_out2);
     digit_decoder di1(time_value[7:4], decoder_out1);
     digit_decoder di0(time_value[3:0], decoder_out0);
-
+    wire finish_wait;
 
     always @(*) begin
         case(cur_state)
@@ -151,7 +155,7 @@ module control(
             UPDATE_SCORE_SEG2: nx_state = finish ? UPDATE_SCORE_SEG3 : UPDATE_SCORE_SEG2;
             UPDATE_SCORE_SEG3: nx_state = finish ? WAIT_1_FRAME : UPDATE_SCORE_SEG3; // ***
             WAIT_1_FRAME: nx_state = finish_wait ? UPDATE_MAP : WAIT_1_FRAME;
-            GAME_OVER: nx_state = finish ? FINISH : GAME_OVER;
+            GAME_OVER: nx_state = gameover ? FINISH : GAME_OVER;
             FINISH: nx_state = WAIT;
             default: nx_state = WAIT;
         endcase
@@ -159,7 +163,6 @@ module control(
 
     // frame counter
     reg [19:0] frame_counter;
-    wire finish_wait;
     assign finish_wait = (frame_counter == 20'd833333);
     always @(posedge clk) begin
         if (!resetn)
@@ -175,7 +178,6 @@ module control(
         update_game = 1'd0;
         update_nx_shape = 1'd0;
         update_digit = 1'd0;
-        map_value = 230'd0;
         digit_seg_value = 21'd0;
         draw = 1'd0;
         x_origin = 8'd0;
@@ -185,7 +187,6 @@ module control(
             WAIT:
                 enable_time_recorder <= 1'd0;
             UPDATE_MAP: begin
-                map_value = 230'd7;
                 draw = 1'd1;
                 update_game = 1'd1;
                 x_origin = 8'd0;
@@ -269,6 +270,14 @@ endmodule
 
 // 10 x 23 & 4 x 4
 module datapath(
+    input [3:0] t0_x,
+    input [3:0] t1_x,
+    input [3:0] t2_x,
+    input [3:0] t3_x,
+    input [4:0] t0_y,
+    input [4:0] t1_y,
+    input [4:0] t2_y,
+    input [4:0] t3_y,
     input [229:0] map_value,
     input update_game,
     input update_nx_shape,
@@ -290,16 +299,17 @@ module datapath(
     output reg [2:0] color_to_vga
 );
     // initialize game map and display the falling piece(the falling piece is not stacked yet, so it is just a view for player.)
+    // (Why not just passing a 2D register? since we don't want to manipulate the original data, we create a 2D register copy of the input data)
     reg [0:9] stacked_tiles[22:0];
     integer j;
 	always@(posedge clk) begin
 		for (j=0; j<23; j=j+1) begin
-			stacked_tiles[j] <= map_value[10*j +: 10];
+			stacked_tiles[j] <= map_value[j*10+:10];
 		end
-        stacked_tiles[0][0] <= 1'd1;
-        stacked_tiles[0][1] <= 1'd1;
-        stacked_tiles[0][2] <= 1'd1;
-        stacked_tiles[1][1] <= 1'd1;
+        stacked_tiles[t0_y][t0_x] <= 1'd1;
+        stacked_tiles[t1_y][t1_x] <= 1'd1;
+        stacked_tiles[t2_y][t2_x] <= 1'd1;
+        stacked_tiles[t3_y][t3_x] <= 1'd1;
 	end
     // initialize waiting shape
     reg [0:3] wait_shape[3:0];
@@ -317,7 +327,7 @@ module datapath(
             digit_seg[s] <= digit_seg_value[3*s +: 3];
         end
     end
-    //
+    // declare counters for drawing
     reg [12:0] map_cter_value;
     reg [9:0] wait_shape_cter_vlaue;
     reg [5:0] digit_cter_value;
@@ -363,7 +373,7 @@ module datapath(
         end
     end
 
-    // drawing x-y movement
+    // drawing x_y movement
     always @(posedge clk) begin
         if (!resetn) begin
             x_to_vga <= 8'd0;
