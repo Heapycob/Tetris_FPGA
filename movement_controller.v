@@ -19,7 +19,7 @@ module movement_controller(
     output reg [4:0] t3_y_out
 );
     reg [0:9] board_value [22:0];
-    always@(posedge clk_50) begin: my_b1
+    always@(posedge clk_50) begin: init_board_value
         integer j;
         for(j=0;j<23;j=j+1) begin
             board_value[j] <= stacked_tiles[j*10+:10];
@@ -34,12 +34,28 @@ module movement_controller(
     wire [4:0] t1_y;
     wire [4:0] t2_y;
     wire [4:0] t3_y;
-
     shape_recognisor sr(cur_shape_id, t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y);
+
+
+    wire [3:0] r_t0_x;
+    wire [3:0] r_t1_x;
+    wire [3:0] r_t2_x;
+    wire [3:0] r_t3_x;
+    wire [4:0] r_t0_y;
+    wire [4:0] r_t1_y;
+    wire [4:0] r_t2_y;
+    wire [4:0] r_t3_y;
+    shape_rotator srt(cur_shape_id, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out, r_t0_x, r_t1_x, r_t2_x, r_t3_x, r_t0_y, r_t1_y, r_t2_y, r_t3_y);
 
     reg [25:0] delay_cter;
     reg [25:0] speed;
     
+    wire rotatable_tile = ~(board_value[r_t0_y][r_t0_x] || board_value[r_t1_y][r_t1_x] || board_value[r_t2_y][r_t2_x] || board_value[r_t3_y][r_t3_x]);
+    wire rotatable_wall_left = r_t0_x >= 4'd0 && r_t1_x >= 4'd0 && r_t2_x >= 4'd0 && r_t3_x >= 4'd0;
+    wire rotatable_wall_right = r_t0_x < 4'd10 && r_t1_x < 4'd10 && r_t2_x < 4'd10 && r_t3_x < 4'd10;
+    wire rotatable_wall_up = r_t0_y >= 5'd0 && r_t1_y >= 5'd0 && r_t2_y >= 4'd0 && r_t3_y >= 5'd0;
+    wire rotatable_wall_bottom = r_t0_y < 5'd23 && r_t1_y < 5'd23 && r_t2_y < 5'd23 && r_t3_y < 5'd23;
+
     wire left_wall = t0_x_out == 4'd0 || t1_x_out == 4'd0 || t2_x_out == 4'd0 || t3_x_out == 4'd0;
     wire right_wall = t0_x_out == 4'd9 || t1_x_out == 4'd9 || t2_x_out == 4'd9 || t3_x_out == 4'd9;
     wire bottom_wall = t0_y_out == 5'd22 || t1_y_out == 5'd22 || t2_y_out == 5'd22 || t3_y_out == 5'd22;
@@ -47,6 +63,7 @@ module movement_controller(
     wire right_tiles_collision = board_value[t0_y_out][t0_x_out+1] || board_value[t1_y_out][t1_x_out+1] || board_value[t2_y_out][t2_x_out+1] || board_value[t3_y_out][t3_x_out+1];
     wire bottom_tiles_collision = board_value[t0_y_out+1][t0_x_out] || board_value[t1_y_out+1][t1_x_out] || board_value[t2_y_out+1][t2_x_out] || board_value[t3_y_out+1][t3_x_out];
     
+
     always@(posedge clk_50) begin
         cur_stacked <= 1'd0;
         speed <= 26'd50000000;
@@ -68,12 +85,8 @@ module movement_controller(
             t3_y_out <= t3_y;
         end
 
-        // if (up) begin
-        //     // depends on the shape
-        // end
-
         if (down)
-            speed <= 26'd12500000;
+            speed <= 26'd6250000;
 
         if (delay_cter % speed == 26'd0) begin
             if (bottom_wall || bottom_tiles_collision) begin
@@ -84,6 +97,21 @@ module movement_controller(
                 t1_y_out <= t1_y_out + 5'd1;
                 t2_y_out <= t2_y_out + 5'd1;
                 t3_y_out <= t3_y_out + 5'd1;
+            end
+        end
+
+        if (up) begin
+            if (delay_cter % 26'd12500000 == 26'd0) begin
+                if (rotatable_tile && rotatable_wall_up && rotatable_wall_bottom && rotatable_wall_left && rotatable_wall_right) begin
+                    t0_x_out <= r_t0_x;
+                    t1_x_out <= r_t1_x;
+                    t2_x_out <= r_t2_x;
+                    t3_x_out <= r_t3_x;
+                    t0_y_out <= r_t0_y;
+                    t1_y_out <= r_t1_y;
+                    t2_y_out <= r_t2_y;
+                    t3_y_out <= r_t3_y;
+                end
             end
         end
 
@@ -121,8 +149,6 @@ module movement_controller(
             end
         end
     end
-
-
 endmodule
 
 module tetris(
@@ -182,7 +208,6 @@ module tetris(
                 FROM_WAITING = 3'd6,
                 GAME_OVER = 3'd7;
     
-    //
     reg [2:0] cur_shape_id, nx_shape_id;
     reg clear_board;
     wire cur_stacked;
@@ -237,7 +262,6 @@ module tetris(
         endcase
     end
 
-
     always @(posedge clk_50) begin
         if(!resetn)
             cur_state = WAIT;
@@ -270,7 +294,7 @@ module board_state_recorder(
         if (!resetn || clear) begin
             board_value <= 230'd0;
         end
-        else if (update) begin: my_b
+        else if (update) begin: update_board_value
             integer j;
             for (j=0; j<23; j=j+1) begin
                 stacked_tiles[j] <= board_value[j*10+:10];
