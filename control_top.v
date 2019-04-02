@@ -30,8 +30,7 @@ module control_top (
 	output	[9:0]	VGA_B;   				//	VGA Blue[9:0]
 	
 	wire resetn;
-	
-	assign resetn = KEY[0];
+	assign resetn = ~SW[0];
 	
 	// Create the colour, x, y and writeEn wires that are inputs to the controller.
 	wire [2:0] colour;
@@ -64,8 +63,13 @@ module control_top (
 		defparam VGA.BACKGROUND_IMAGE = "black.mif";
 			
     wire start;
-    assign start = KEY[1];
-    control c0(SW[2], SW[1], SW[3], SW[0], CLOCK_50, resetn, start, writeEn, x, y, colour);
+    assign start = ~SW[1];
+    wire up, down, left, right;
+    assign up = ~KEY[2];
+    assign down = ~KEY[1];
+    assign left = ~KEY[3];
+    assign right = ~KEY[0];
+    control c0(up, down, left, right, CLOCK_50, resetn, start, writeEn, x, y, colour);
 
 endmodule
 
