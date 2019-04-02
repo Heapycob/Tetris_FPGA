@@ -157,9 +157,6 @@ module tetris(
     left, // move left
     right, // move right
     clk_50,
-    // clk_1_by_60, 
-    // clk_quarter,
-    // clk_1s,
     resetn,
     start,
 
@@ -173,7 +170,8 @@ module tetris(
     t1_y_out,
     t2_y_out,
     t3_y_out,
-    gameover
+    gameover,
+    score
 );
     input start;
     input up; // rotate
@@ -181,9 +179,6 @@ module tetris(
     input left; // move left
     input right; // move right
     input clk_50;
-    // input clk_1_by_60; 
-    // input clk_quarter;
-    // input clk_1s;
     input resetn;
     output [229:0] board_value;
     output [15:0] to_nx_shape_display;
@@ -196,6 +191,7 @@ module tetris(
     output [4:0] t2_y_out;
     output [4:0] t3_y_out;
     output gameover;
+    output [9:0] score;
 
     reg [2:0] cur_state, nx_state;
 
@@ -217,7 +213,7 @@ module tetris(
     movement_controller mvc(up, down, left, right, cur_shape_id, ld_cur, clk_50, resetn, board_value, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out);
     //
     
-    board_state_recorder bst(clk_50, resetn, clear_board, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out, gameover, board_value);
+    board_state_recorder bst(clk_50, resetn, clear_board, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out, gameover, board_value, score);
     //
     wire [2:0] shape_gen;
     shape_generator sg(clk_50, resetn, shape_gen);
@@ -287,17 +283,23 @@ module board_state_recorder(
     input [4:0] t2_y,
     input [4:0] t3_y,
     output reg gameover,
-    output reg [229:0] board_value
+    output reg [229:0] board_value,
+    output reg [9:0] score
 );
     reg [0:9] stacked_tiles [22:0];
-    always@(posedge clk) begin
+    // check line-removability
+    always@(posedge clk) begin: removability
         integer i, j;
         for (j=0; j<23; j=j+1) begin
             if (stacked_tiles[j] == 10'b11111_11111) begin
-                stacked_tiles[j] <= 10'd1;
+                score <= score + 1'd1;
+                // remove current line
+                stacked_tiles[j] <= 10'd0;
+                // shift uppter lines down
                 for (i=j; i>0; i=i-1) begin
                     stacked_tiles[i] <= stacked_tiles[i-1];
                 end
+                // the moset top line gets empty line
                 stacked_tiles[0] <= 10'd0;
             end
         end
@@ -308,6 +310,7 @@ module board_state_recorder(
             gameover <= 1'd1;
 
         if (!resetn || clear) begin
+            score <= 10'd0;
             gameover <= 1'd0;
             board_value <= 230'd0;
             for (j=0; j<23; j=j+1) begin

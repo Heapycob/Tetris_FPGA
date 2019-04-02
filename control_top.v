@@ -118,21 +118,20 @@ module control(
     ///
     reg [20:0] digit_seg_value;
     ///
-    ///
     wire [15:0]shape_id;// = 16'b0000_0110_0110_0000; // BLOCK_O
     //wire [15:0]shape_id = 16'b0000_0000_0100_1110; // BLOCK_T
-    ///
+    
     wire [3:0] t0_x, t1_x, t2_x, t3_x;
     wire [4:0] t0_y, t1_y, t2_y, t3_y;
     datapath d0(t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, board_value, update_game, update_nx_shape, update_digit, draw, resetn, x_origin, y_origin, color_in, clk, shape_id, digit_seg_value, finish, plot, x_to_vga, y_to_vga, color_to_vga);
-    //////
+
     
     wire gameover;
-    tetris tet0 (up, down, left, right, clk, resetn, start, board_value, shape_id, t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, gameover);
-    /////////
+    wire [9:0] score;
+    tetris tet0 (up, down, left, right, clk, resetn, start, board_value, shape_id, t0_x, t1_x, t2_x, t3_x, t0_y, t1_y, t2_y, t3_y, gameover, score);
 
     // initialize time recorder.
-    reg enable_time_recorder; // *
+    reg enable_time_recorder;
     wire [15:0] time_value;
     time_recorder ti0 (clk, resetn, enable_time_recorder, time_value);
     // initialize digit decoder for each digit of time.
@@ -140,6 +139,17 @@ module control(
     wire [20:0] decoder_out2;
     wire [20:0] decoder_out1;
     wire [20:0] decoder_out0;
+    // scoreboard
+    wire [11:0] score_value;
+    score_converter sctr(score, score_value);
+    wire [20:0] decoder_out6;
+    wire [20:0] decoder_out5;
+    wire [20:0] decoder_out4;
+    // for score
+    digit_decoder di6(score_value[11:8], decoder_out6);
+    digit_decoder di5(score_value[7:4], decoder_out5);
+    digit_decoder di4(score_value[3:0], decoder_out4);
+    // for time
     digit_decoder di3(time_value[15:12], decoder_out3);
     digit_decoder di2(time_value[11:8], decoder_out2);
     digit_decoder di1(time_value[7:4], decoder_out1);
@@ -159,8 +169,8 @@ module control(
             UPDATE_SCORE_SEG1: nx_state = finish ? UPDATE_SCORE_SEG2 : UPDATE_SCORE_SEG1;
             UPDATE_SCORE_SEG2: nx_state = finish ? UPDATE_SCORE_SEG3 : UPDATE_SCORE_SEG2;
             UPDATE_SCORE_SEG3: nx_state = finish ? WAIT_1_FRAME : UPDATE_SCORE_SEG3; // ***
-            WAIT_1_FRAME: nx_state = finish_wait ? UPDATE_MAP : WAIT_1_FRAME;
-            GAME_OVER: nx_state = gameover ? FINISH : GAME_OVER;
+            WAIT_1_FRAME: nx_state = finish_wait ? GAME_OVER : WAIT_1_FRAME;
+            GAME_OVER: nx_state = gameover ? GAME_OVER : UPDATE_MAP;
             FINISH: nx_state = WAIT;
             default: nx_state = WAIT;
         endcase
@@ -189,8 +199,9 @@ module control(
         y_origin = 7'd0;
         color_in = 3'b100;
         case(cur_state)
-            WAIT:
+            WAIT: begin
                 enable_time_recorder <= 1'd0;
+            end
             UPDATE_MAP: begin
                 draw = 1'd1;
                 update_game = 1'd1;
@@ -204,14 +215,14 @@ module control(
                 y_origin = 7'd6;
             end
             UPDATE_TIME_SEG1: begin
-                digit_seg_value = decoder_out3; // digit 8
+                digit_seg_value = decoder_out3;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd67;
                 y_origin = 7'd52;
             end
             UPDATE_TIME_SEG2: begin
-                digit_seg_value = decoder_out2; // digit 7
+                digit_seg_value = decoder_out2;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd72;
@@ -225,39 +236,42 @@ module control(
                 y_origin = 7'd52;
             end
             UPDATE_TIME_SEG3: begin
-                digit_seg_value = decoder_out1;// digit 6
+                digit_seg_value = decoder_out1;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd82;
                 y_origin = 7'd 52;
             end
             UPDATE_TIME_SEG4: begin
-                digit_seg_value = decoder_out0; // digit 5
+                digit_seg_value = decoder_out0;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd87;
                 y_origin = 7'd 52;
             end
             UPDATE_SCORE_SEG1: begin
-                digit_seg_value = 21'b001_001_001_111_101_101_101; // digit 1
+                digit_seg_value = decoder_out6;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd67;
                 y_origin = 7'd70;
             end
             UPDATE_SCORE_SEG2: begin
-                digit_seg_value = 21'b111_100_100_111_001_001_111; // digit 2
+                digit_seg_value = decoder_out5;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd72;
                 y_origin = 7'd70;
             end
             UPDATE_SCORE_SEG3: begin
-                digit_seg_value = 21'b111_001_001_111_001_001_111; // digit 3
+                digit_seg_value = decoder_out4;
                 draw = 1'd1;
                 update_digit = 1'd1;
                 x_origin = 8'd77;
                 y_origin = 7'd70;
+            end
+            GAME_OVER: begin
+                enable_time_recorder <= 1'd0;
             end
 
         endcase
