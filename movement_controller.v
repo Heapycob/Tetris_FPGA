@@ -115,7 +115,7 @@ module movement_controller(
             end
         end
 
-        if (left) begin
+        if (left && ~up) begin
             if (delay_cter % 26'd12500000 == 26'd0) begin
                 if (left_wall || left_tiles_collision) begin
                     t0_x_out <= t0_x_out;
@@ -132,7 +132,7 @@ module movement_controller(
             end
         end
 
-        if (right) begin
+        if (right && ~up) begin
             if (delay_cter % 26'd12500000 == 26'd0) begin
                 if (right_wall || right_tiles_collision) begin
                     t0_x_out <= t0_x_out;
@@ -286,28 +286,44 @@ module board_state_recorder(
     input [4:0] t1_y,
     input [4:0] t2_y,
     input [4:0] t3_y,
-    output gameover,
+    output reg gameover,
     output reg [229:0] board_value
 );
     reg [0:9] stacked_tiles [22:0];
     always@(posedge clk) begin
+        integer i, j;
+        for (j=0; j<23; j=j+1) begin
+            if (stacked_tiles[j] == 10'b11111_11111) begin
+                stacked_tiles[j] <= 10'd1;
+                for (i=j; i>0; i=i-1) begin
+                    stacked_tiles[i] <= stacked_tiles[i-1];
+                end
+                stacked_tiles[0] <= 10'd0;
+            end
+        end
+        for (j=0; j<23; j=j+1) begin
+            board_value[j*10+:10] <= stacked_tiles[j];
+        end
+        if (stacked_tiles[0] != 10'd0)
+            gameover <= 1'd1;
+
         if (!resetn || clear) begin
+            gameover <= 1'd0;
             board_value <= 230'd0;
+            for (j=0; j<23; j=j+1) begin
+                stacked_tiles[j] <= 10'd0;
+            end
         end
         else if (update) begin: update_board_value
-            integer j;
             for (j=0; j<23; j=j+1) begin
                 stacked_tiles[j] <= board_value[j*10+:10];
             end
-            stacked_tiles[t0_y][t0_x] = 1'd1;
-            stacked_tiles[t1_y][t1_x] = 1'd1;
-            stacked_tiles[t2_y][t2_x] = 1'd1;
-            stacked_tiles[t3_y][t3_x] = 1'd1;
-
-            for (j=0; j<23; j=j+1) begin
-                board_value[j*10+:10] <= stacked_tiles[j];
-            end
+            stacked_tiles[t0_y][t0_x] <= 1'd1;
+            stacked_tiles[t1_y][t1_x] <= 1'd1;
+            stacked_tiles[t2_y][t2_x] <= 1'd1;
+            stacked_tiles[t3_y][t3_x] <= 1'd1;
         end
+
     end
 
 endmodule
