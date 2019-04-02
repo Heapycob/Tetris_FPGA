@@ -73,7 +73,7 @@ module movement_controller(
             delay_cter <= 26'd0;
         else
             delay_cter <= delay_cter + 26'd1;
-        
+        // whether current shape finish falling or not
         if (ld_cur) begin
             t0_x_out <= t0_x;
             t1_x_out <= t1_x;
@@ -84,7 +84,7 @@ module movement_controller(
             t2_y_out <= t2_y;
             t3_y_out <= t3_y;
         end
-
+        // speed up motion
         if (down)
             speed <= 26'd6250000;
 
@@ -99,7 +99,7 @@ module movement_controller(
                 t3_y_out <= t3_y_out + 5'd1;
             end
         end
-
+        // rotation
         if (up) begin
             if (delay_cter % 26'd12500000 == 26'd0) begin
                 if (rotatable_tile && rotatable_wall_up && rotatable_wall_bottom && rotatable_wall_left && rotatable_wall_right) begin
@@ -114,7 +114,7 @@ module movement_controller(
                 end
             end
         end
-
+        // left movement
         if (left && ~up) begin
             if (delay_cter % 26'd12500000 == 26'd0) begin
                 if (left_wall || left_tiles_collision) begin
@@ -131,7 +131,7 @@ module movement_controller(
                 end
             end
         end
-
+        // right movement
         if (right && ~up) begin
             if (delay_cter % 26'd12500000 == 26'd0) begin
                 if (right_wall || right_tiles_collision) begin
@@ -159,7 +159,6 @@ module tetris(
     clk_50,
     resetn,
     start,
-
     board_value,
     to_nx_shape_display,
     t0_x_out,
@@ -211,13 +210,12 @@ module tetris(
     reg ld_cur;
 
     movement_controller mvc(up, down, left, right, cur_shape_id, ld_cur, clk_50, resetn, board_value, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out);
-    //
     
     board_state_recorder bst(clk_50, resetn, clear_board, cur_stacked, t0_x_out, t1_x_out, t2_x_out, t3_x_out, t0_y_out, t1_y_out, t2_y_out, t3_y_out, gameover, board_value, score);
-    //
+    
     wire [2:0] shape_gen;
     shape_generator sg(clk_50, resetn, shape_gen);
-    //
+    
     shape_id_decoder sd(nx_shape_id, to_nx_shape_display);
     
     always@(*) begin
@@ -264,8 +262,6 @@ module tetris(
         else
             cur_state = nx_state;
     end
-
-
 
 endmodule
 
@@ -326,7 +322,6 @@ module board_state_recorder(
             stacked_tiles[t2_y][t2_x] <= 1'd1;
             stacked_tiles[t3_y][t3_x] <= 1'd1;
         end
-
     end
 
 endmodule
